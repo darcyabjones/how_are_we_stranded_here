@@ -1,18 +1,17 @@
-import numpy as np
-import pandas as pd
-import csv
 import argparse
 import os
 import sys
 import subprocess
 import binascii
 import re
+from os.path import join as pjoin
 from statistics import median
 from statistics import stdev
 
 def is_gz_file(filepath):
     with open(filepath, 'rb') as test_f:
         return binascii.hexlify(test_f.read(2)) == b'1f8b'
+
 def main():
     parser = argparse.ArgumentParser(description='Check if fastq files are stranded')
     parser.add_argument('-g', '--gtf', type=str, help='Genome annotation GTF file', required = True)
@@ -106,7 +105,7 @@ def main():
 
     if gtf_extension.lower() == '.gff' or gtf_extension.lower() == '.gff3':
         # convert gff to gtf
-        gtf_filename = test_folder + '/' + os.path.basename(gtf).replace(gtf_extension, '.gtf')
+        gtf_filename = pjoin(test_folder, os.path.basename(gtf).replace(gtf_extension, '.gtf'))
         cmd = 'gff32gtf ' + gtf + ' --output ' + gtf_filename
         print('converting gff to gtf')
         if print_cmds:
@@ -117,8 +116,8 @@ def main():
 
     # Run gtf2bed
 
-    bed_filename = test_folder + '/' + os.path.basename(gtf).replace(gtf_extension, '.bed')
-    cmd = 'gtf2bed --gtf ' + gtf_filename  + ' --bed ' + bed_filename
+    bed_filename = pjoin(test_folder, os.path.basename(gtf).replace(gtf_extension, '.bed'))
+    cmd = f'gtf2bed --gtf {gtf_filename} --bed {bed_filename}'
     print('converting gtf to bed')
     if print_cmds:
         print('running command: ' + cmd)
@@ -126,57 +125,73 @@ def main():
 
     # make kallisto index
     if os.path.exists(kallisto_index_name):
-        print('using ' + kallisto_index_name + ' as kallisto index')
+        print(f'using {kallisto_index_name} as kallisto index')
     else:
         print('Checking if fasta headers and bed file transcript_ids match...')
         check_bed = check_bed_in_fa(bed_filename, fasta)
         if not check_bed:
-            print("Can't find transcript ids from " + fasta + " in " + bed_filename)
+            print(f"Can't find transcript ids from {fasta} in {bed_filename}")
             print("Trying to converting fasta header format to match transcript ids to the BED file...")
-            cmd = "sed 's/[|]/ /g' " + fasta + " > " + test_folder + "/transcripts.fa"
+            outfasta = pjoin(test_folder, "transcripts.fa")
+            cmd = f"sed 's/[|]/ /g' {fasta} > {outfasta}"
             if print_cmds:
                 print('running command: ' + cmd)
             subprocess.call(cmd, shell=True)
-            fasta = test_folder + "/transcripts.fa"
+            fasta = outfasta
             check_bed_converted = check_bed_in_fa(bed_filename, fasta)
             if not check_bed_converted:
-                subprocess.call("rm -f " + fasta, shell=True)
+                subprocess.call(f"rm -f {fasta}", shell=True)
                 sys.exit("Can't find any of the first 10 BED transcript_ids in fasta file... Check that these match")
         else:
             print("OK!")
 
-        cmd = 'kallisto index -i ' + kallisto_index_name  + ' ' + fasta
+        cmd = f'kallisto index -i {kallisto_index_name} {fasta}'
         print('generating kallisto index')
         if print_cmds:
-            print('running command: ' + cmd)
+            print(f'running command: {cmd}')
+
         subprocess.call(cmd, shell=True)
 
         if not check_bed:
-            cmd = "rm -f " + fasta
+            cmd = f"rm -f {fasta}"
             subprocess.call(cmd, shell=True)
 
-    print('creating fastq files with first ' + str(n_reads) + ' reads')
-    reads_1_sample = test_folder + '/' + os.path.basename(reads_1).replace('.fastq' ,'').replace('.fq' ,'').replace('.gz' ,'') + '_sample.fq'
+    print(f'creating fastq files with first {n_reads} reads')
+    reads_1_sample = pjoin(
+            test_folder, 
+            os.path.basename(reads_1).replace('.fastq' ,'').replace('.fq' ,'').replace('.gz' ,'') + '_sample.fq'
+    )
+
     if not single_strand:
-        reads_2_sample = test_folder + '/' + os.path.basename(reads_2).replace('.fastq' ,'').replace('.fq' ,'').replace('.gz' ,'') + '_sample.fq'
+        reads_2_sample = pjoin(
+            test_folder,
+            os.path.basename(reads_2).replace('.fastq' ,'').replace('.fq' ,'').replace('.gz' ,'') + '_sample.fq'
+        )
+    else:
+        reads_2_sample = None
+
     # check if the fasta is gzipped
     if(is_gz_file(reads_1)):
-        cmd = 'zcat < ' + reads_1 + ' | head -n ' + str(n_reads * 4) + ' > ' + reads_1_sample
+        cmd = f'zcat < {reads_1} | head -n {n_reads * 4} > {reads_1_sample}'
     else:
-        cmd = 'head ' + reads_1 + ' -n ' + str(n_reads * 4) + ' > ' + reads_1_sample
+        cmd = f'head {reads_1} -n {n_reads * 4} > {reads_1_sample}'
+
     if print_cmds:
-        print('running command: ' + cmd)
+        print(f'running command: {cmd}')
     subprocess.call(cmd, shell=True)
 
     # check if the fasta is gzipped
     if not single_strand:
-        if(is_gz_file(reads_2)):
-            cmd = 'zcat < ' + reads_2 + ' | head -n ' + str(n_reads * 4) + ' > ' + reads_2_sample
+        if is_gz_file(reads_2) and reads_2_sample is not None:
+            cmd = f'zcat < {reads_2} | head -n {n_reads * 4} > {reads_2_sample}'
+        elif reads_2_sample is not None:
+            cmd = f'head {reads_2} -n {n_reads * 4} > {reads_2_sample}'
         else:
-            cmd = 'head ' + reads_2 + ' -n ' + str(n_reads * 4) + ' > ' + reads_2_sample
+            sys.exit("It should be impossible to reach this point.")
+
         subprocess.call(cmd, shell=True)
         if print_cmds:
-            print('running command: ' + cmd)
+            print(f'running command: {cmd}')
 
     # check mean/sd read length
     if single_strand:
@@ -191,46 +206,74 @@ def main():
         read_len_median_ss = median(read_lengths)
         read_len_sd_ss = stdev(read_lengths)
         if read_len_sd_ss == 0: read_len_sd_ss = 1
+    else:
+        # Just to appease static linters
+        read_len_median_ss = None
+        read_len_sd_ss = None
 
     # align with kallisto
     print('quantifying with kallisto')
     if single_strand:
-        cmd = 'kallisto quant -i  ' + kallisto_index_name + '  -o ' + test_folder + '/' + 'kallisto_strand_test --single -l ' + str(read_len_median_ss) + ' -s ' + str(read_len_sd_ss) + ' --genomebam --gtf ' + gtf_filename + ' ' + reads_1_sample
+        cmd = " ".join([
+            'kallisto quant',
+            '-i', kallisto_index_name,
+            '-o', pjoin(test_folder, 'kallisto_strand_test'),
+            '--single',
+            '-l', str(read_len_median_ss),
+            '-s', str(read_len_sd_ss),
+            '--genomebam',
+            '--gtf', f"{gtf_filename} {reads_1_sample}"
+        ])
     else:
-        cmd = 'kallisto quant -i  ' + kallisto_index_name + '  -o ' + test_folder + '/' + 'kallisto_strand_test --genomebam --gtf ' + gtf_filename + ' ' + reads_1_sample + ' ' + reads_2_sample
+        assert isinstance(reads_2_sample, str), "This shouldn't be possible"
+        cmd = " ".join([
+            'kallisto quant',
+            '-i', kallisto_index_name,
+            '-o', pjoin(test_folder, 'kallisto_strand_test'),
+            '--genomebam',
+            '--gtf', gtf_filename,
+            reads_1_sample, reads_2_sample
+        ])
+
     if print_cmds:
-        print('running command: ' + cmd)
+        print(f'running command: {cmd}')
     subprocess.call(cmd, shell=True)
 
     # check strandedness w/ 2million alignments
     #n_reads = 2000000
     print('checking strandedness')
-    cmd = 'infer_experiment.py -r ' + bed_filename + ' -s ' + str(n_reads) + ' -i ' + test_folder + '/' + 'kallisto_strand_test/pseudoalignments.bam > ' + test_folder + '/' + 'strandedness_check.txt'
+    cmd = " ".join([
+        'infer_experiment.py',
+        '-r', bed_filename,
+        '-s', str(n_reads),
+        '-i', pjoin(test_folder, 'kallisto_strand_test/pseudoalignments.bam'),
+        '>', pjoin(test_folder, 'strandedness_check.txt')
+    ])
+
     if print_cmds:
-        print('running command: ' + cmd)
+        print(f'running command: {cmd}')
     subprocess.call(cmd, shell=True)
 
-    with open(test_folder + '/' + 'strandedness_check.txt', "r") as handle:
+    with open(pjoin(test_folder, 'strandedness_check.txt'), "r") as handle:
         result = handle.readlines()
         result = map(str.rstrip, result)
         result = filter(lambda x: x != "", result)
         result = list(result)
-    
 
-    failed = float(result[1].replace('Fraction of reads failed to determine: ', ''))
     if single_strand:
         fwd = float(result[2].replace('Fraction of reads explained by "++,--": ', ''))
         rev = float(result[3].replace('Fraction of reads explained by "+-,-+": ', ''))
     else:
         fwd = float(result[2].replace('Fraction of reads explained by "1++,1--,2+-,2-+": ', ''))
         rev = float(result[3].replace('Fraction of reads explained by "1+-,1-+,2++,2--": ', ''))
-    fwd_percent = fwd/(fwd+rev)
-    rev_percent = rev/(fwd+rev)
+
+    fwd_percent = fwd / (fwd + rev)
+    rev_percent = rev / (fwd + rev)
 
     print(result[0])
     print(result[1])
-    print(result[2] + " (" + str(round(fwd_percent*100, 1)) + "% of explainable reads)")
-    print(result[3] + " (" + str(round(rev_percent*100, 1)) + "% of explainable reads)")
+    print(f"{result[2]} ({round(fwd_percent * 100, 1)} % of explainable reads)")
+    print(f"{result[3]} ({round(rev_percent*100, 1)} % of explainable reads)")
 
 
     if float(result[1].replace('Fraction of reads failed to determine: ', '')) > 0.50:
