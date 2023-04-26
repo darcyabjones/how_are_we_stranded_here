@@ -95,14 +95,14 @@ def check_bed_in_fa(bed_filename, fasta):
             if len(sline) < 4:
                 continue
 
-            bed_ids.append(sline[4])
+            bed_ids.append(sline[3])
 
     fa_headers_equal = []
 
     regex = re.compile(r"\.[0-9]*$")
 
     headers = set()
-    with open(fasta, "w") as handle:
+    with open(fasta, "r") as handle:
         for line in handle:
             line = line.strip()
             if not line.startswith(">"):
