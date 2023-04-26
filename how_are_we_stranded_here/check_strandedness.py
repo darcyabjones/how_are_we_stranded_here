@@ -28,8 +28,14 @@ def run_command(cmd):
 
 
 
-def subset_fastqs(test_folder, reads_1, reads_2, single_strand, n_reads, print_cmds):
-
+def subset_fastqs(
+        test_folder,
+        reads_1,
+        reads_2,
+        single_strand,
+        n_reads,
+        print_cmds
+    ):
     reads_1_sample = os.path.basename(reads_1)
     reads_1_sample = re.sub(r"(\.fq|\.fastq)?(\.gz)?$", "", reads_1_sample)
     reads_1_sample = pjoin(
@@ -73,9 +79,11 @@ def subset_fastqs(test_folder, reads_1, reads_2, single_strand, n_reads, print_c
     return reads_1_sample, reads_2_sample
 
 
-# check that fasta sequence names match bed names
 def check_bed_in_fa(bed_filename, fasta):
-    """checks that bed transcript ids match (fuzzy on version numbers) fasta header ids (before space)"""
+    """checks that bed transcript ids match (fuzzy on version numbers)
+    fasta header ids (before space)
+    """
+
     bed_ids = list()
     with open(bed_filename, "r") as handle:
         for line in handle:
@@ -126,9 +134,16 @@ def check_dependencies_installed():
 
     check_kallisto = run_command(cmd = 'kallisto version')
     if not check_kallisto[1] == b'':
-        sys.exit("kallisto is not found in PATH. Please install from https://pachterlab.github.io/kallisto")
+        sys.exit(
+            "kallisto is not found in PATH. "
+            "Please install from https://pachterlab.github.io/kallisto"
+        )
     else:
-        kallisto_version = str(check_kallisto[0]).split('version ')[1].replace("\\n'","")
+        kallisto_version = (
+            str(check_kallisto[0])
+            .split('version ')[1]
+            .replace("\\n'","")
+        )
         if int(kallisto_version.split('.')[1]) < 44:
             sys.exit(
                 f'Found kallisto {kallisto_version}, but version >= 0.44.0 is '
@@ -138,7 +153,10 @@ def check_dependencies_installed():
 
     check_RSeQC = run_command(cmd = 'infer_experiment.py --help')[1] == b''
     if not check_RSeQC:
-        sys.exit("infer_experiment.py (RSeQC) is not found in PATH. Please install from http://rseqc.sourceforge.net/#installation")
+        sys.exit(
+            "infer_experiment.py (RSeQC) is not found in PATH. "
+            "Please install from http://rseqc.sourceforge.net/#installation"
+        )
 
 
 def find_read_length(reads_1_sample):
@@ -157,15 +175,59 @@ def find_read_length(reads_1_sample):
 
 
 def cli():
-    parser = argparse.ArgumentParser(description='Check if fastq files are stranded')
-    parser.add_argument('-g', '--gtf', type=str, help='Genome annotation GTF file', required = True)
-    parser.add_argument('-fa', '--transcripts', type=str, help='.fasta file with transcript sequences')
-    parser.add_argument('-n', '--nreads', type=int, help='number of reads to sample', default = 200000)
-    parser.add_argument('-r1', '--reads_1', type=str, help='fastq.gz file (R1)', required = True)
-    parser.add_argument('-r2', '--reads_2', type=str, help='fastq.gz file (R2)')
-    parser.add_argument('-k', '--kallisto_index', type=str, help='name of kallisto index (will build under this name if file not found)', default = 'kallisto_index')
-    parser.add_argument('-p', '--print_commands', action='store_true', help='Print bash commands as they occur?')
-    parser.add_argument('-o', '--outdir', type=str, help='Store working files in this directory', default=None)
+    parser = argparse.ArgumentParser(
+        description='Check if fastq files are stranded'
+    )
+    parser.add_argument(
+        '-g', '--gtf',
+        type=str,
+        help='Genome annotation GTF file',
+        required = True
+    )
+    parser.add_argument(
+        '-fa', '--transcripts',
+        type=str,
+        help='.fasta file with transcript sequences'
+    )
+    parser.add_argument(
+        '-n', '--nreads',
+        type=int,
+        help='number of reads to sample',
+        default = 200000
+    )
+    parser.add_argument(
+        '-r1', '--reads_1',
+        type=str,
+        help='fastq.gz file (R1)',
+        required = True
+    )
+    parser.add_argument(
+        '-r2', '--reads_2',
+        type=str,
+        help='fastq.gz file (R2)'
+    )
+    parser.add_argument(
+        '-k', '--kallisto_index',
+        type=str,
+        help=(
+            'name of kallisto index (will build under this '
+            'name if file not found)'
+        ),
+        default = 'kallisto_index'
+    )
+    parser.add_argument(
+        '-p',
+        '--print_commands',
+        action='store_true',
+        help='Print bash commands as they occur?'
+    )
+    parser.add_argument(
+        '-o',
+        '--outdir',
+        type=str,
+        help='Store working files in this directory',
+        default=None
+    )
     return parser
 
 
@@ -173,7 +235,6 @@ def get_outdir(reads_1):
     bname = os.path.basename(reads_1)
     test_folder = re.sub(r"(\.fq|\.fastq)?(\.gz)?$", "", bname)
     test_folder = f"stranded_test_{test_folder}"
-
 
     # make a test_folder
     if not os.path.isdir(test_folder):
@@ -202,8 +263,15 @@ def main():
     fasta = args.transcripts
     print_cmds = args.print_commands
 
-    if fasta is None and (kallisto_index_name is None or not os.path.exists(kallisto_index_name)):
-        sys.exit('transcript .fasta sequences are required to generate the kallisto index. Please supply with --transcripts')
+    if (
+        (fasta is None) and
+        ((kallisto_index_name is None) or
+         (not os.path.exists(kallisto_index_name)))
+    ):
+        sys.exit(
+            'transcript .fasta sequences are required to generate '
+            'the kallisto index. Please supply with --transcripts'
+        )
 
     check_dependencies_installed()
 
@@ -269,7 +337,10 @@ def main():
         check_bed = check_bed_in_fa(bed_filename, fasta)
         if not check_bed:
             print(f"Can't find transcript ids from {fasta} in {bed_filename}")
-            print("Trying to converting fasta header format to match transcript ids to the BED file...")
+            print(
+                "Trying to converting fasta header format to match "
+                "transcript ids to the BED file..."
+            )
             outfasta = pjoin(test_folder, "transcripts.fa")
 
             cmd = f"sed 's/[|]/ /g' {fasta} > {outfasta}"
@@ -281,7 +352,10 @@ def main():
             if not check_bed_converted:
                 if os.path.exists(fasta):
                     os.remove(fasta)
-                sys.exit("Can't find any of the first 10 BED transcript_ids in fasta file... Check that these match")
+                sys.exit(
+                    "Can't find any of the first 10 BED transcript_ids "
+                    "in fasta file... Check that these match"
+                )
         else:
             print("OK!")
 
@@ -350,24 +424,43 @@ def main():
         result = list(result)
 
     if single_strand:
-        fwd = float(result[2].replace('Fraction of reads explained by "++,--": ', ''))
-        rev = float(result[3].replace('Fraction of reads explained by "+-,-+": ', ''))
+        fwd = float(
+            result[2]
+            .replace('Fraction of reads explained by "++,--": ', '')
+        )
+        rev = float(
+            result[3]
+            .replace('Fraction of reads explained by "+-,-+": ', '')
+        )
     else:
-        fwd = float(result[2].replace('Fraction of reads explained by "1++,1--,2+-,2-+": ', ''))
-        rev = float(result[3].replace('Fraction of reads explained by "1+-,1-+,2++,2--": ', ''))
+        fwd = float(
+            result[2]
+            .replace('Fraction of reads explained by "1++,1--,2+-,2-+": ', '')
+        )
+        rev = float(
+            result[3]
+            .replace('Fraction of reads explained by "1+-,1-+,2++,2--": ', '')
+        )
 
     fwd_percent = fwd / (fwd + rev)
     rev_percent = rev / (fwd + rev)
 
     print(result[0])
     print(result[1])
-    print(f"{result[2]} ({round(fwd_percent * 100, 1)} % of explainable reads)")
+    print(f"{result[2]} ({round(fwd_percent*100, 1)} % of explainable reads)")
     print(f"{result[3]} ({round(rev_percent*100, 1)} % of explainable reads)")
 
+    undetermined = float(
+        result[1]
+        .replace('Fraction of reads failed to determine: ', '')
+    )
 
-    if float(result[1].replace('Fraction of reads failed to determine: ', '')) > 0.50:
+    if undetermined > 0.50:
         print('Failed to determine strandedness of > 50% of reads.')
-        print('If this is unexpected, try running again with a higher --nreads value')
+        print(
+            'If this is unexpected, try running again with a '
+            'higher --nreads value'
+        )
     if fwd_percent > 0.9:
         if single_strand:
             print('Over 90% of reads explained by "++,--"')
@@ -386,5 +479,12 @@ def main():
         print('Under 60% of reads explained by one direction')
         print('Data is likely unstranded')
     else:
-        print('Data does not fall into a likely stranded (max percent explained > 0.9) or unstranded layout (max percent explained < 0.6)')
-        print('Please check your data for low quality and contaminating reads before proceeding')
+        print(
+            'Data does not fall into a likely stranded '
+            '(max percent explained > 0.9) or unstranded layout '
+            '(max percent explained < 0.6)'
+        )
+        print(
+            'Please check your data for low quality and contaminating '
+            'reads before proceeding'
+        )
